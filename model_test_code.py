@@ -15,10 +15,10 @@ import keras
 
 from keras.preprocessing.image import ImageDataGenerator
 
-x_train = np.load('X_train.npy')
-x_val = np.load('X_val.npy')
-y_train = np.load('y_train.npy')
-y_val = np.load('y_val.npy')
+x_train = np.load('../X_train.npy')
+x_val = np.load('../X_val.npy')
+y_train = np.load('../y_train.npy')
+y_val = np.load('../y_val.npy')
 
 
 
@@ -53,7 +53,7 @@ out = base_inception.output
 out = GlobalAveragePooling2D()(out)
 out = Dense(512, activation='relu')(out)
 out = Dense(512, activation='relu')(out)
-total_classes = 50
+total_classes = 120
 predictions = Dense(total_classes, activation='softmax')(out)
 
 model = Model(inputs=base_inception.input, outputs=predictions)

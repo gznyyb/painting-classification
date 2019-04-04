@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 
-data_labels = pd.read_csv('labels/labels.csv')
+data_labels = pd.read_csv('../labels/labels.csv')
 target_labels = data_labels['breed']
 
-train_folder = 'train/'
+train_folder = '../train/'
 data_labels['image_path'] = data_labels.apply(lambda row: (train_folder + row["id"] + ".jpg" ), 
                                               axis=1)
 
@@ -33,7 +33,7 @@ X_train, X_val, y_train, y_val = train_test_split(x_train, y_train,
                                                   stratify=np.array(y_train), 
                                                   random_state=42)
 
-np.save('X_train.npy', arr=X_train)
-np.save('X_val.npy', arr=X_val)
-np.save('y_train.npy', arr=y_train)
-np.save('y_val.npy', arr=y_val)
+np.save('../X_train.npy', arr=X_train)
+np.save('../X_val.npy', arr=X_val)
+np.save('../y_train.npy', arr=y_train)
+np.save('../y_val.npy', arr=y_val)
