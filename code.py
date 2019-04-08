@@ -1,119 +1,56 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Mar 28 15:21:29 2019
-
-@author: xianghongluo
-"""
-
 import numpy as np
 import pickle
 import os
 
 from sklearn.model_selection import train_test_split
 
+import pandas as pd
+
 from keras.layers import Dropout, Dense, GlobalAveragePooling2D
 from keras.layers import Flatten, MaxPooling2D, Conv2D
 from keras.applications.inception_v3 import InceptionV3
+from keras.applications.vgg19 import VGG19
+from keras.applications.nasnet import NASNetLarge
+from keras.applications.xception import Xception
+from keras.applications.mobilenet_v2 import MobileNetV2
 from keras.callbacks import CSVLogger
 from keras.models import Model
 import keras 
 
 from keras.preprocessing.image import ImageDataGenerator
 
-np.random.seed(10)
-
-# tf.enable_eager_execution()
-# print("Eager execution: {}".format(tf.executing_eagerly()))
-
-with open('labels_list', 'rb') as fp:
-    labels = pickle.load(fp)
-
-image_data = np.load('image_data.npy')
-
-unique_labels = sorted(set(labels))
-name2idx = {label: index for index, label in enumerate(unique_labels)}
-idx2name = np.array(unique_labels)
-
-int_labels = [name2idx[named_label] for named_label in labels]
+x_train = np.load('../X_train.npy')
+x_val = np.load('../X_val.npy')
+y_train = np.load('../y_train.npy')
+y_val = np.load('../y_val.npy')
 
 
-X_train, X_test, y_train, y_test = train_test_split(image_data, int_labels,
-                                                    test_size=0.25,
-                                                    random_state=10,
-                                                    stratify=int_labels)
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
-                                                  test_size=0.25,
-                                                  random_state=10,
-                                                  stratify=y_train)
-
-
-# def train_data_generator():
-#     train_datagen = ImageDataGenerator(rescale=1./255, zoom_range=0.3, rotation_range=50,
-#                                        width_shift_range=0.2, height_shift_range=0.2, shear_range=0.2,
-#                                        horizontal_flip=True, fill_mode='nearest')
-#     train_data_generate = train_datagen.flow(X_train, y_train,
-#                                              batch_size=BATCH_SIZE)
-#     for image, label in train_data_generate:
-#         yield image, label
-# 
-# 
-# def val_data_generator():
-#     val_datagen = ImageDataGenerator(rescale=1./255)
-#     val_data_generate = val_datagen.flow(X_val, y_val,
-#                                          batch_size=BATCH_SIZE)
-#     for image, label in val_data_generate:
-#         yield image, label
-
-
-BATCH_SIZE = 32
-# BUFFER_SIZE = 10000
-
-# train_data_set = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-# val_data_set = tf.data.Dataset.from_tensor_slices((X_val, y_val))
-# 
-# train_data_set = tf.data.Dataset.from_generator(train_data_generator,
-#                                                 (tf.float32, tf.int32),
-#                                                 ((BATCH_SIZE, 224, 224, 3), (64,)))
-# val_data_set = tf.data.Dataset.from_generator(val_data_generator,
-#                                               (tf.float32, tf.int32),
-#                                               ((BATCH_SIZE, 224, 224, 3), (64,)))
-# 
-# train_data_set_shuffled = train_data_set.shuffle(BUFFER_SIZE)
-# val_data_set_shuffled = val_data_set.shuffle(BUFFER_SIZE)
-
-
-# def train_image_transformation(x, y):
-#     datagen = ImageDataGenerator(rescale=1./255, zoom_range=0.3, rotation_range=50,
-#                                  width_shift_range=0.2, height_shift_range=0.2, shear_range=0.2,
-#                                  horizontal_flip=True, fill_mode='nearest')
-#     return datagen.random_transform(x, seed=10), y
-# 
-# 
-# def val_image_transformation(x, y):
-#     return x / 25, y
-# 
-# train_data_set = train_data_set.map(train_image_transformation)
-# val_data_set = val_data_set.map(val_image_transformation)
-# 
-# train_data_set_shuffled = train_data_set.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-# val_data_set_shuffled = val_data_set.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+# y_train_ohe = pd.get_dummies(y_train.reset_index(drop=True)).as_matrix()
+# y_val_ohe = pd.get_dummies(y_val.reset_index(drop=True)).as_matrix()
+BATCH_SIZE = 64
 
 train_datagen = ImageDataGenerator(rescale=1./255, rotation_range=30,
                                    width_shift_range=0.2, height_shift_range=0.2,
                                    horizontal_flip=True)
 val_datagen = ImageDataGenerator(rescale=1./255)
-train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-val_generator = val_datagen.flow(X_val, y_val, batch_size=BATCH_SIZE)
+train_generator = train_datagen.flow(x_train, y_train, batch_size=BATCH_SIZE)
+val_generator = val_datagen.flow(x_val, y_val, batch_size=BATCH_SIZE)
 
 
-def transfer_model(num_classes):
-    base_model = InceptionV3(weights='imagenet', include_top=False)
-    base_model.trainable = False
+def transfer_model(num_classes, input_shape):
+    base_model = Xception(weights='imagenet', include_top=False,
+                       input_shape=input_shape)
+    for layer in base_model.layers:
+        layer.trainable = False
+    for layer in base_model.layers[96:]:
+        layer.trainable = True
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(1024, activation='relu')(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(0.4)(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(0.3)(x)
     predictions = Dense(num_classes, activation='softmax')(x)
     model = Model(inputs=base_model.input, outputs=predictions)
     return model
@@ -138,28 +75,21 @@ def simple_cov_model(num_classes, input_shape):
     model.add(Flatten())
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.3))
-    model.add(Dense(512, activation='relu'))
-    model.add(Dropout(0.3))
-    model.add(Dense(num_classes, activation='softmax'))
-    return model
-
 
 def build_model(num_classes, input_shape, is_transfer=False):
     if is_transfer:
-        return transfer_model(num_classes)
+        return transfer_model(num_classes, input_shape)
     else:
         return simple_cov_model(num_classes, input_shape)
 
 
-NUM_CLASSES = len(name2idx.keys())
-INPUT_SHAPE = (224, 224, 3)
+NUM_CLASSES = 50
+INPUT_SHAPE = (331, 331, 3)
 model = build_model(NUM_CLASSES, INPUT_SHAPE, is_transfer=True)
+    
+model.load_weights('../models_saved/weights-improvement-23-1.9502-bigger.hdf5')
 
-# old_checkpoint_dir = './training_checkpoints'
-
-# model.load_weights('weights-improvement-178-1.3679-bigger.hdf5')
-
-opt = keras.optimizers.Adam()
+opt = keras.optimizers.Adam(lr=1e-4)
 model.compile(
     optimizer = opt,
     loss = 'sparse_categorical_crossentropy',
@@ -168,28 +98,25 @@ model.compile(
 # Directory where the checkpoints will be saved
 
 checkpoint_callback = keras.callbacks.ModelCheckpoint(
-    filepath='models_saved\\weights-improvement-{epoch:02d}-{val_loss:.4f}-bigger.hdf5',
+    filepath='../models_saved/weights-improvement-{epoch:02d}-{val_loss:.4f}-bigger.hdf5',
     save_weights_only=True,
     save_best_only=True,
     monitor='val_loss')
 
-csv_logger = CSVLogger('training_log.csv')
+csv_logger = CSVLogger('../training_log.csv')
 
-tensorboard = keras.callbacks.TensorBoard(log_dir='./logs')
+tensorboard = keras.callbacks.TensorBoard(log_dir='../logs')
 
-STEPS_PER_EPOCH = X_train.shape[0] // BATCH_SIZE
-VALIDATION_STEPS = X_val.shape[0] // BATCH_SIZE
+STEPS_PER_EPOCH = x_train.shape[0] // BATCH_SIZE
+VALIDATION_STEPS = x_val.shape[0] // BATCH_SIZE
 
-# model.summary()
+model.summary()
 
-reduce = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, mode='auto', verbose=1)
-early = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=1e-4, patience=10, mode='auto', verbose=1)
+# reduce = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, mode='auto', verbose=1)
+early = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=1e-4, patience=5, mode='auto', verbose=1)
 
-history = model.fit_generator(train_generator, epochs=200, steps_per_epoch=STEPS_PER_EPOCH,
-                              callbacks=[checkpoint_callback, csv_logger, tensorboard, reduce], 
+history = model.fit_generator(train_generator, epochs=50, steps_per_epoch=STEPS_PER_EPOCH,
+                              callbacks=[checkpoint_callback, early], 
                               validation_data=val_generator, verbose=1, validation_steps=VALIDATION_STEPS)
 
 
-
-# layers = [(layer, layer.name, layer.trainable) for layer in model.layers]
-# pd.DataFrame(layers, columns=['Layer Type', 'Layer Name', 'Layer Trainable'])
