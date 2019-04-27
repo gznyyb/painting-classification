@@ -16,13 +16,16 @@ import pickle
 from tensorflow.keras.preprocessing import image as kp_image
 from sklearn.model_selection import train_test_split
 
+import pickle
+
 
 image_dir_path = '../best-artworks-of-all-time/resized'
 
 image_data = []
 labels = []
+
 for filename in glob.glob(os.path.join(image_dir_path,'*.jpg')):
-    img_str_list = filename.split('/')[-1].split('_')
+    img_str_list = filename.split('\\')[-1].split('_')
     if len(img_str_list) == 2:
         labels.append(img_str_list[0])
     else:
@@ -62,4 +65,10 @@ np.save('../X_test.npy', arr=X_test)
 np.save('../y_train.npy', arr=y_train)
 np.save('../y_val.npy', arr=y_val)
 np.save('../y_test.npy', arr=y_test)
+
+with open('../name2idx.pickle', 'wb') as handle:
+    pickle.dump(name2idx, handle)
+
+with open('../idx2name.pickle', 'wb') as handle:
+    pickle.dump(idx2name, handle)
 
